@@ -2158,7 +2158,7 @@ class ZipFile:
 
         with self.open(member, pwd=pwd) as source, \
                 open(targetpath, "wb") as target:
-            shutil.copyfileobj(source, target)
+            shutil.copyfileobj(source, target, 1024*1024*200)
 
         return targetpath
 
@@ -2232,7 +2232,7 @@ class ZipFile:
                 self.start_dir = self.fp.tell()
         else:
             with open(filename, "rb") as src, self.open(zinfo, 'w') as dest:
-                shutil.copyfileobj(src, dest, 1024*8)
+                shutil.copyfileobj(src, dest, 1024*1024*200)
 
     def writestr(self, zinfo_or_arcname, data,
                  compress_type=None, compresslevel=None):

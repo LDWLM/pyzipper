@@ -1,11 +1,11 @@
 import struct
 
-from Cryptodome.Protocol.KDF import PBKDF2
-from Cryptodome.Cipher import AES
-from Cryptodome.Hash import HMAC
-from Cryptodome.Hash.SHA1 import SHA1Hash
-from Cryptodome.Util import Counter
-from Cryptodome import Random
+# from Cryptodome.Protocol.KDF import PBKDF2
+# from Cryptodome.Cipher import AES
+# from Cryptodome.Hash import HMAC
+# from Cryptodome.Hash.SHA1 import SHA1Hash
+# from Cryptodome.Util import Counter
+# from Cryptodome import Random
 
 from .zipfile import (
     ZIP_BZIP2,
@@ -42,46 +42,57 @@ class AESZipDecrypter(BaseZipDecrypter):
     hmac_size = 10
 
     def __init__(self, zinfo, pwd, encryption_header):
-        self.filename = zinfo.filename
+        # self.filename = zinfo.filename
 
-        key_length = WZ_KEY_LENGTHS[zinfo.wz_aes_strength]
-        salt_length = WZ_SALT_LENGTHS[zinfo.wz_aes_strength]
+        # key_length = WZ_KEY_LENGTHS[zinfo.wz_aes_strength]
+        # salt_length = WZ_SALT_LENGTHS[zinfo.wz_aes_strength]
 
-        salt = struct.unpack(
-            "<{}s".format(salt_length),
-            encryption_header[:salt_length]
-        )[0]
-        pwd_verify_length = 2
-        pwd_verify = encryption_header[salt_length:]
-        dkLen = 2*key_length + pwd_verify_length
-        keymaterial = PBKDF2(pwd, salt, count=1000, dkLen=dkLen)
+        # salt = struct.unpack(
+        #     "<{}s".format(salt_length),
+        #     encryption_header[:salt_length]
+        # )[0]
+        # pwd_verify_length = 2
+        # pwd_verify = encryption_header[salt_length:]
+        # dkLen = 2*key_length + pwd_verify_length
+        # keymaterial = PBKDF2(pwd, salt, count=1000, dkLen=dkLen)
 
-        encpwdverify = keymaterial[2*key_length:]
-        if encpwdverify != pwd_verify:
-            raise RuntimeError("Bad password for file %r" % zinfo.filename)
+        # encpwdverify = keymaterial[2*key_length:]
+        # if encpwdverify != pwd_verify:
+        #     raise RuntimeError("Bad password for file %r" % zinfo.filename)
 
-        enckey = keymaterial[:key_length]
-        self.decypter = AES.new(
-            enckey,
-            AES.MODE_CTR,
-            counter=Counter.new(nbits=128, little_endian=True)
-        )
-        encmac_key = keymaterial[key_length:2*key_length]
-        self.hmac = HMAC.new(encmac_key, digestmod=SHA1Hash())
+        # enckey = keymaterial[:key_length]
+        # self.decypter = AES.new(
+        #     enckey,
+        #     AES.MODE_CTR,
+        #     counter=Counter.new(nbits=128, little_endian=True)
+        # )
+        # encmac_key = keymaterial[key_length:2*key_length]
+        # self.hmac = HMAC.new(encmac_key, digestmod=SHA1Hash())
+        self.key = pwd
 
     @staticmethod
     def encryption_header_length(zinfo):
         # salt_length + pwd_verify_length
-        salt_length = WZ_SALT_LENGTHS[zinfo.wz_aes_strength]
-        return salt_length + 2
+        # salt_length = WZ_SALT_LENGTHS[zinfo.wz_aes_strength]
+        # print(f'encryption_header_length({zinfo.wz_aes_strength}) -> {salt_length+2}')
+        return len(b'0123456789')
 
     def decrypt(self, data):
-        self.hmac.update(data)
-        return self.decypter.decrypt(data)
+        # self.hmac.update(data)
+        # return self.decypter.decrypt(data)
+        # print(f'{self.__class__.__name__}.decrypt({data})')
+
+        import itertools
+        arr = bytearray(data)
+        for i, (k, d) in enumerate(zip(itertools.cycle(self.key), data)):
+            if k and d and d^k:
+                arr[i] ^= k
+        return bytes(arr)
 
     def check_hmac(self, hmac_check):
-        if self.hmac.digest()[:10] != hmac_check:
-            raise BadZipFile("Bad HMAC check for file %r" % self.filename)
+        # if self.hmac.digest()[:10] != hmac_check:
+        #     raise BadZipFile("Bad HMAC check for file %r" % self.filename)
+        pass
 
 
 class BaseZipEncrypter:
@@ -141,21 +152,24 @@ class AESZipEncrypter(BaseZipEncrypter):
         }
         self.aes_strength = aes_strengths[nbits]
 
-        self.salt = Random.new().read(self.salt_length)
-        pwd_verify_length = 2
-        dkLen = 2 * key_length + pwd_verify_length
-        keymaterial = PBKDF2(pwd, self.salt, count=1000, dkLen=dkLen)
+        # self.salt = Random.new().read(self.salt_length)
+        # pwd_verify_length = 2
+        # dkLen = 2 * key_length + pwd_verify_length
+        # keymaterial = PBKDF2(pwd, self.salt, count=1000, dkLen=dkLen)
 
-        self.encpwdverify = keymaterial[2*key_length:]
+        # self.encpwdverify = keymaterial[2*key_length:]
 
-        enckey = keymaterial[:key_length]
-        self.encrypter = AES.new(
-            enckey,
-            AES.MODE_CTR,
-            counter=Counter.new(nbits=128, little_endian=True)
-        )
-        encmac_key = keymaterial[key_length:2*key_length]
-        self.hmac = HMAC.new(encmac_key, digestmod=SHA1Hash())
+        # enckey = keymaterial[:key_length]
+        # self.encrypter = AES.new(
+        #     enckey,
+        #     AES.MODE_CTR,
+        #     counter=Counter.new(nbits=128, little_endian=True)
+        # )
+        # encmac_key = keymaterial[key_length:2*key_length]
+        # self.hmac = HMAC.new(encmac_key, digestmod=SHA1Hash())
+        self.hmac = b''
+        self.key = pwd
+        # print(f'{self.__class__.__name__}.aes_strength = {aes_strengths[nbits]}')
 
     def update_zipinfo(self, zipinfo):
         zipinfo.wz_aes_vendor_id = WZ_AES_VENDOR_ID
@@ -164,15 +178,25 @@ class AESZipEncrypter(BaseZipEncrypter):
             zipinfo.wz_aes_version = self.force_wz_aes_version
 
     def encryption_header(self):
-        return self.salt + self.encpwdverify
+        # return self.salt + self.encpwdverify
+        return b'0123456789'
 
     def encrypt(self, data):
-        data = self.encrypter.encrypt(data)
-        self.hmac.update(data)
-        return data
+        # data = self.encrypter.encrypt(data)
+        # self.hmac.update(data)
+        # self.hmac = data
+
+        import itertools
+        arr = bytearray(data)
+        for i, (k, d) in enumerate(zip(itertools.cycle(self.key), data)):
+            if k and d and d^k:
+                arr[i] ^= k
+        return bytes(arr)
 
     def flush(self):
-        return struct.pack('<%ds' % self.hmac_size, self.hmac.digest()[:10])
+        return b''.join((bytes(i) for i in range(self.hmac_size)))
+        # return struct.pack('<%ds' % self.hmac_size, self.hmac[:10])
+        # return self.hmac
 
 
 class AESZipInfo(ZipInfo):
